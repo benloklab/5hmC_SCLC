@@ -14,7 +14,6 @@
 ##############################################################################
 
 ### Libraries --------------------------------------------------------------------
-
 library(dplyr)
 library(ggplot2)
 library(ggpubr)
@@ -25,7 +24,6 @@ library(scales)
 library(stringr)
 
 ### Input Data -------------------------------------------------------------------
-
 # Data used in this manuscript can be found at:
 # https://doi.org/10.5281/zenodo.19216411
 #
@@ -43,7 +41,6 @@ ncc_annot  <- read.csv("NCC_clinical_annotations.csv")
 sclc_annot <- read.csv("SCLC_clinical_annotations.csv")
 
 # Figure Notes -----------------------------------------------------------------
-
 # Fig. 1A was created in BioRender.
 # Fig. 1B was created in Microsoft Excel.
 # Fig. 1E was created in dhmr.R. See that script for the full code.
@@ -156,7 +153,6 @@ cat("Median of median 5hmC RPKMs for NCC: ", round(median_ncc, 2), "\n")
 cat("Median of median 5hmC RPKMs for SCLC:", round(median_sclc, 2), "\n")
 
 ### Fig 1D - Gene feature Plots ----------------------------------------------------
-
 # Before running:
 #   Run annot.R first. This should create "basic_genes_counts.csv".
 
@@ -329,7 +325,6 @@ ggsave(
 )
 
 ### Fig 1F - PCA --------------------------------------------
-
 # Before running:
 #   Run dhmr.R first. This should create "pca_data.rds".
 
