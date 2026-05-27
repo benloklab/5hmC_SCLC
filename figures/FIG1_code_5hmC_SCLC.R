@@ -9,7 +9,7 @@
 #   Code for generating Figure 1 visualizations, including global 5hmC boxplots,
 #   gene feature plots, PCA, volcano plots, and GSEA dot plots.
 #
-# Original author: Janice Li
+# Author: Janice Li
 # Last updated: May 14, 2026
 ##############################################################################
 
