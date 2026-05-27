@@ -1,474 +1,520 @@
 ##############################################################################
+# Figure 1 Visualization Code
 #
-# Code found in this script was used to make figure 1 in the publication:
-# "Exploring the Utility of Cell-Free DNA Hydroxymethylation Profiling in 
-# Small-Cell Lung Cancer"
+# Publication:
+#   Exploring the Utility of Cell-Free DNA Hydroxymethylation Profiling in
+#   Small-Cell Lung Cancer
 #
-# This code can be used for creating boxplots, gene feature pie charts, 
-# heatmaps, PCA, volcano plots, and dot plots to visualize GSEA data
-# 
-# Code was created by: Janice Li
+# Description:
+#   Code for generating Figure 1 visualizations, including global 5hmC boxplots,
+#   gene feature plots, PCA, volcano plots, and GSEA dot plots.
+#
+# Original author: Janice Li
 # Last updated: May 14, 2026
-#
 ##############################################################################
 
 
-### Load libraries ---------------------------------------------------------
-library(ggplot2)
-library(RColorBrewer)
-library(ggrepel)
+### Libraries --------------------------------------------------------------------
+
 library(dplyr)
+library(ggplot2)
 library(ggpubr)
-
-# Fig 1E
+library(ggrepel)
 library(pheatmap)
+library(RColorBrewer)
+library(scales)
+library(stringr)
 
+### Input Data -------------------------------------------------------------------
 
+# Data used in this manuscript can be found at:
+# https://doi.org/10.5281/zenodo.19216411
+#
+# Counts matrix format:
+#   Rows    = genomic regions / 5hmC peaks
+#   Columns = samples
 
-### Load data --------------------------------------------------------------
-# Data used in this manuscript can be found at: https://doi.org/10.5281/zenodo.19216411
-
-# For counts matrices:
-# * Rows = genomic regions/5hmC peaks
-# * Columns = sample
-
-# SCLC cfDNA 5hmC data and corresponding CDX gDNA 5hmC counts matrix
+# Counts matrices
 sclc_cdx_5hmC_cm <- readRDS("hmC.SCLC_CDX.count_mat.rds")
-
-# SCLC and NCC cfDNA 5hmC counts matrix
 sclc_ncc_5hmC_cm <- readRDS("hmC.SCLC_NCC.count_mat.rds")
+rna_cdx          <- readRDS("RNA.CDX.CPM_matrix.rds")
 
-# RNA-seq counts matrix (normalized to CPM)
-rna_cdx <- readRDS("RNA.CDX.CPM_matrix.rds")
-
-# NCC metadata
-ncc_annot <- read.csv("NCC_clinical_annotations.csv")
-
-# SCLC metadata
+# Annotation data
+ncc_annot  <- read.csv("NCC_clinical_annotations.csv")
 sclc_annot <- read.csv("SCLC_clinical_annotations.csv")
 
+# Figure Notes -----------------------------------------------------------------
 
-### Fig 1A, B, E ---------------------------------------------------------------
+# Fig. 1A was created in BioRender.
+# Fig. 1B was created in Microsoft Excel.
+# Fig. 1E was created in dhmr.R. See that script for the full code.
+#
+# Note:
+#   Some input files may be very large and memory-intensive. Running the analysis
+#   in a cloud or HPC environment is recommended.
 
-# Fig 1A was created in biorender.com
-# Fig 1B was created in Microsoft Excel
-# Fig 1E was created in dhmr.R code. Please go there for the full code for this 
-  # figure. Note: Some input files may be very large and memory-intensive. We 
-  # recommend running the analysis in a cloud or HPC environment rather than 
-  # locally.
+### Figure 1C - Global 5hmC Boxplot ----------------------------------------------
 
+# Output variables
+output_path_medians <- "<INSERT PATH/>"
+output_file_medians <- "<INSERT FILE_NAME>"
 
-### Fig 1C - Global 5hmC boxplot --------------------------------------------
+output_path_plot <- "<INSERT PATH/>"
+output_file_plot <- "<INSERT FILE_NAME>"
 
-### [PREP] Variables for saving ###
-
-# For saving RPKM medians
-OUTPUT_PATH_med <- "<INSERT PATH/>"
-FILE_NAME_med <- "<INSERT FILE_NAME>"
-
-# For saving final boxplot
-OUTPUT_PATH_p <- "<INSERT PATH/>"
-FILE_NAME_p <- "<INSERT FILE_NAME>"
-
-# Box plot colours
-colours <- c("SCLC"="#DE5057", "NCC"="#4568BF") 
-
-
-### [CODE] ###
+# Plot colors
+boxplot_colors <- c(
+  "SCLC" = "#DE5057",
+  "NCC"  = "#4568BF"
+)
 
 ### 1) Calculate median counts for each sample, across all 5hmC peak regions
-rpkm_med <- apply(sclc_ncc_5hmC_cm, 2, median, na.rm = TRUE)
+rpkm_medians <- apply(sclc_ncc_5hmC_cm, 2, median, na.rm = TRUE)
 
 # [OPTIONAL] Save RPKM medians
-OUTPUT_FILE_NAME_med <- paste0(OUTPUT_PATH_med, FILE_NAME_med)
-saveRDS(rpkm_med, OUTPUT_FILE_NAME_med)
-
+saveRDS(
+  rpkm_medians,
+  file = file.path(output_path_medians, output_file_medians)
+)
 
 ### 2) Add global median data to metadata
-
 # Make new data frame with sample names
-df <- data.frame("Samples" = names(rpkm_med), "rpkm_med" = rpkm_med)
+global_5hmc_df <- data.frame(
+  sample   = names(rpkm_medians),
+  rpkm_med = rpkm_medians
+)
 
 # Get sample type
-df$Type <- sub("\\..*", "", colnames(df))
-df$Type <- factor(df$Type, levels = c("SCLC", "NCC"))
-
-# Make new df with col medians, sample name, and sample type
-new_samples_df <- samples_df[, c("sample_names", "Type", "med_rpkm")]
-
+global_5hmc_df$Type <- sub("\\..*", "", global_5hmc_df$sample)
+global_5hmc_df$Type <- factor(global_5hmc_df$Type, levels = c("SCLC", "NCC"))
 
 ### 3) Plot Box plot
-p <- ggplot(df, aes(x=Type, y=rpkm_med)) +
-  geom_boxplot(aes(fill=Type), alpha=0.6, outliers=FALSE) + #geom_violin for violin
+fig_1c <- ggplot(global_5hmc_df, aes(x = Type, y = rpkm_med)) +
+  geom_boxplot(
+    aes(fill = Type),
+    alpha = 0.6,
+    outliers = FALSE
+  ) +
   
   # Points
-  geom_point(aes(fill=Type), size=2, shape=21, 
-             position=position_jitterdodge(0.2)) +
+  geom_point(
+    aes(fill = Type),
+    size = 2,
+    shape = 21,
+    position = position_jitterdodge(jitter.width = 0.2)
+  ) +
   
-  # Modify titles
-  labs(x = "Sample Type",
-       y = "Median 5hmC RPKM") +
+  # Calculate p-value
+  stat_compare_means(
+    comparisons = list(c("SCLC", "NCC")),
+    method = "wilcox.test",
+    label = "p.value",
+    textsize = 8,
+    vjust = 0.2
+  ) +
   
-  # Change aesthetics (i.e. background theme, colour)
-  theme(legend.position="none") +
-  scale_fill_manual(values=colours, name="Sample Type") +
+  # Change aesthetics
+  scale_fill_manual(values = boxplot_colors, name = "Sample Type") +
+  scale_y_continuous(
+    breaks = seq(
+      0,
+      max(global_5hmc_df$rpkm_med, na.rm = TRUE),
+      by = 0.5
+    )
+  ) +
+  labs(
+    x = "Sample Type",
+    y = "Median 5hmC RPKM"
+  ) +
   theme_bw() +
-  theme(panel.grid.major=element_blank(), 
-        panel.grid.minor=element_blank(),
-        legend.position="none",
-        text = element_text(size = 12),           # General text size
-        axis.title = element_text(size = 14),     # Axis titles
-        axis.text = element_text(size = 12)) +    # Axis tick labels
-  
-  # Calculate p-value (T-test for normally distributed data; 
-  # wilcox test for non-normally distributed data)
-  stat_compare_means(comparisons = list(c("SCLC", "NCC")),
-                     method = "wilcox.test", label = "p.value", 
-                     textsize = 8, vjust = 0.2) +
-  
-  scale_y_continuous(breaks = seq(0, max(df$med_rpkm, na.rm = TRUE), by = 0.5))
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position  = "none",
+    text             = element_text(size = 12),
+    axis.title       = element_text(size = 14),
+    axis.text        = element_text(size = 12)
+  )
 
 # Display plot
-p
+fig_1c
 
 # Save plot
-OUTPUT_FILE_NAME_p <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(OUTPUT_FILE_NAME_p, plot=p, width=3, height=4, dpi=300, units="in")
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1c,
+  width    = 3,
+  height   = 4,
+  dpi      = 300,
+  units    = "in"
+)
 
+# Summary of medians
+median_ncc  <- median(global_5hmc_df$rpkm_med[global_5hmc_df$Type == "NCC"], na.rm = TRUE)
+median_sclc <- median(global_5hmc_df$rpkm_med[global_5hmc_df$Type == "SCLC"], na.rm = TRUE)
 
+cat("Median of median 5hmC RPKMs for NCC: ", round(median_ncc, 2), "\n")
+cat("Median of median 5hmC RPKMs for SCLC:", round(median_sclc, 2), "\n")
 
-### [BONUS] Get median values
-med_NCC <- median(df$rpkm_med[df$Type == "NCC"], na.rm = TRUE)
-med_SCLC <- median(df$rpkm_med[df$Type == "SCLC"], na.rm = TRUE)
+### Fig 1D - Gene feature Plots ----------------------------------------------------
 
-cat(paste0("The median of median 5hmC RPKMs for NCC is: ", round(med_NCC, 2), "\n"))
-cat(paste0("The median of median 5hmC RPKMs for SCLC is: ", round(med_SCLC, 2), "\n"))
-
-# cat("NCC\n")
-# round(summary(df$med_rpkm[df$Type == "NCC"]), 2)
-# 
-# cat("SCLC\n")
-# round(summary(df$med_rpkm[df$Type == "SCLC"]), 2)
-
-
-
-### Fig 1D - Gene ft plots ----------------------------------------------------
-
-### Please run annotation code "annot.R" before running this code! ###
-# This will give you a file called "basic_genes_counts.csv"
-
-### [PREP] ###
+# Before running:
+#   Run annot.R first. This should create "basic_genes_counts.csv".
 
 # Plot colours
-colours <-  c( "#28405c", "#42899b","#94c4c1","#edada3", "#ce6a6c", "#cc222b")
+gene_feature_colors <- c(
+  "#28405c",
+  "#42899b",
+  "#94c4c1",
+  "#edada3",
+  "#ce6a6c",
+  "#cc222b"
+)
 
-# For saving final plot
-OUTPUT_PATH_p <- "<INSERT PATH/>"
-FILE_NAME_p <- "<INSERT FILE_NAME>"
+# Gene feature labels
+gene_feature_labels <- c(
+  "Introns",
+  "Exons",
+  "1 to 5 kb",
+  "Promoters",
+  "3' UTR",
+  "5' UTR"
+)
 
+# Output variables
+output_path_plot <- "<INSERT PATH/>"
+output_file_plot <- "<INSERT FILE_NAME>"
 
-### [CODE] ###
+### 1) Import annotated basic gene feature annotations
+gene_feature_counts <- read.csv("basic_genes_counts.csv", header = TRUE)
 
-# 1) Import annotated basic gene feature annotations
-gene_ft_counts <- read.csv("basic_genes_counts.csv", header=TRUE)
+# Remove first column if it is an index column
+gene_feature_counts <- gene_feature_counts[, -1]
 
-# Remove first column
-gene_ft_counts <- gene_ft_counts[, -1]
+### 2) Clean labels
+gene_feature_counts$type <- sapply(
+  strsplit(gene_feature_counts$sample, "\\."),
+  function(x) x[2]
+)
 
-# Re-label
-gene_ft_counts$type <- sapply(strsplit(gene_ft_counts$sample, "\\."), function(x) x[2])
-gene_ft_counts$feature <- factor(gene_ft_counts$feature, 
-                                 levels = c("hg19_genes_introns",
-                                            "hg19_genes_exons",
-                                            "hg19_genes_1to5kb", 
-                                            "hg19_genes_promoters",
-                                            "hg19_genes_3UTRs",
-                                            "hg19_genes_5UTRs"))
-gene_ft_counts$type <- factor(gene_ft_counts$type, 
-                              levels = c("SCLC", "NCC"))
+gene_feature_counts$feature <- factor(
+  gene_feature_counts$feature,
+  levels = c(
+    "hg19_genes_introns",
+    "hg19_genes_exons",
+    "hg19_genes_1to5kb",
+    "hg19_genes_promoters",
+    "hg19_genes_3UTRs",
+    "hg19_genes_5UTRs"
+  )
+)
 
-gene_ft <- c("Introns","Exons","1 to 5 kb", "Promoters", "3\' UTR", "5\' UTR")
+gene_feature_counts$type <- factor(
+  gene_feature_counts$type,
+  levels = c("SCLC", "NCC")
+)
 
-
-# 2) Calculate average counts for each gene feature
-med_counts <- gene_ft_counts %>%
+### 3) Calculate median counts and percentages
+median_gene_feature_counts <- gene_feature_counts %>%
   group_by(feature, type) %>%
-  summarize(med_counts = median(count)) %>%
-  ungroup()
+  summarize(med_counts = median(count, na.rm = TRUE), .groups = "drop")
 
+total_by_type <- tapply(
+  median_gene_feature_counts$med_counts,
+  median_gene_feature_counts$type,
+  sum
+)
 
-# Calculate total counts by Type
-total_by_type <- tapply(med_counts$med_counts, med_counts$type, sum)
+median_gene_feature_counts$percent <- round(
+  median_gene_feature_counts$med_counts /
+    total_by_type[median_gene_feature_counts$type] * 100,
+  0
+)
 
+### 4) Pie chart
+# Change selected_type to "NCC" for the NCC pie chart.
+selected_type <- "SCLC"
 
-# Add a new column with percentage by Type
-med_counts$percent <- round(med_counts$med_counts / total_by_type[med_counts$type] * 100, 0)
+median_gene_feature_counts_pie <- median_gene_feature_counts %>%
+  filter(type == selected_type)
 
-
-### [PLOT] 3) Plot stacked bar plot ###
-p <- ggplot(med_counts, aes(x=type, y=med_counts, fill=feature, group=type)) +  
-  
-  geom_bar(position="fill", 
-           stat="identity", 
-           color="black",
-           linewidth=0.1, 
-           alpha=0.7) +
-  theme(legend.position="none") +
-  scale_fill_manual(values=colours, labels = gene_ft) +
-  ggtitle("Gene feature plot") +
-  theme_bw() +
-  theme(panel.grid.major=element_blank(),
-        panel.grid.minor=element_blank(),
-        legend.title=element_blank()) +
-  guides(fill=guide_legend(reverse=TRUE))+
-  xlab("Sample Type") +
-  ylab("Percent") +
-  geom_text(aes(label = paste0(percent, " %")),
-            position = position_fill(vjust = 0.5),
-            size = 5,
-            color = "black")+
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1))  
-
-# Visualize plot
-p
-
-# Save plot
-FILE_PATH <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(FILE_PATH, plot=p, width=3.5, height=5, dpi=300, units="in")
-
-
-### 3) [PLOT] Plot pie chart ###
-med_counts <- med_counts[med_counts$type == "SCLC",] # Run this for SCLC
-# med_counts <- med_counts[med_counts$type == "NCC",] # Run this for NCC
-
-
-# Plotting gene feature plot 
-p <- ggplot(med_counts_sclc, aes(x=type, y=med_counts, fill=feature, group=type)) +  
-  geom_bar(position="fill", 
-           stat="identity", 
-           color="black",
-           linewidth=0.1, 
-           alpha=0.7) +
+fig_1d_pie <- ggplot(
+  median_gene_feature_counts_pie,
+  aes(x = type, y = med_counts, fill = feature, group = type)
+) +
+  geom_bar(
+    position = "fill",
+    stat     = "identity",
+    color    = "black",
+    linewidth = 0.1,
+    alpha    = 0.7
+  ) +
   coord_polar("y", start = 0) +
-  theme(legend.position="none") +
-  scale_fill_manual(values=colours, labels = gene_ft) +
-  ggtitle("Gene feature plot") +
+  geom_text(
+    aes(label = paste0(percent, " %")),
+    position = position_fill(vjust = 0.5),
+    size     = 5,
+    color    = "black"
+  ) +
+  scale_fill_manual(values = gene_feature_colors, labels = gene_feature_labels) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  labs(title = paste("Gene Feature Plot:", selected_type)) +
   theme_void() +
-  theme(panel.grid.major=element_blank(),
-        panel.grid.minor=element_blank(),
-        plot.margin = margin(t = 5, r = 5, b = 10, l = 5, unit = "mm"),  
-        legend.title = element_blank(),
-        legend.position = "bottom") +
-  guides(fill=guide_legend(reverse=TRUE)) +
-  geom_text(aes(label = paste0(percent, " %")),
-            position = position_fill(vjust = 0.5),
-            size = 5,
-            color = "black")+
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1))  
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin      = margin(t = 5, r = 5, b = 10, l = 5, unit = "mm"),
+    legend.title     = element_blank(),
+    legend.position  = "bottom"
+  )
 
 # Visualize plot
-p
+fig_1d_pie
 
 # Save plot
-FILE_PATH <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(FILE_PATH, plot=p, width=3.5, height=5, dpi=300, units="in")
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1d_pie,
+  width    = 3.5,
+  height   = 5,
+  dpi      = 300,
+  units    = "in"
+)
 
+### [OPTIONAL: Stacked bar plot]
+fig_1d_bar <- ggplot(
+  median_gene_feature_counts,
+  aes(x = type, y = med_counts, fill = feature, group = type)
+) +
+  geom_bar(
+    position = "fill",
+    stat     = "identity",
+    color    = "black",
+    linewidth = 0.1,
+    alpha    = 0.7
+  ) +
+  geom_text(
+    aes(label = paste0(percent, " %")),
+    position = position_fill(vjust = 0.5),
+    size     = 5,
+    color    = "black"
+  ) +
+  scale_fill_manual(values = gene_feature_colors, labels = gene_feature_labels) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  labs(
+    title = "Gene Feature Plot",
+    x     = "Sample Type",
+    y     = "Percent"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.title     = element_blank(),
+    legend.position  = "none"
+  )
 
+# Visualize plot
+fig_1d_bar
+
+# Save plot
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1d_bar,
+  width    = 3.5,
+  height   = 5,
+  dpi      = 300,
+  units    = "in"
+)
 
 ### Fig 1F - PCA --------------------------------------------
 
-### Please run annotation code "dhmr.R" before running this code! ###
-# This will give you a file called "pca_data.rds"
-
-### [PREP] ###
+# Before running:
+#   Run dhmr.R first. This should create "pca_data.rds".
 
 # Annotations
-sclc_annot <- sclc_annot[, 1:4] # Subset to variables of interest
-annot <- rbind(sclc_annot, ncc_annot)
+sclc_annot_subset <- sclc_annot[, 1:4]
+sample_annotations <- rbind(sclc_annot_subset, ncc_annot)
 
 # Load PCA data
 pca_data <- readRDS("pca_data.rds")
 
 # Setting colours
-namedColor <- c("SCLC"="#E8858A", "NCC"="#7C96D2") 
+pca_colors <- c(
+  "SCLC" = "#E8858A",
+  "NCC"  = "#7C96D2"
+)
 
-# Variance percent of each principal component
-percentVar <- round(100*attr(pca_data, "percentVar"))
+# Percent variance for each principal component
+percent_var <- round(100 * attr(pca_data, "percentVar"))
 
-# For saving final plot
-OUTPUT_PATH_p <- "<INSERT PATH/>"
-FILE_NAME_p <- "<INSERT FILE_NAME>"
+# Output variables
+output_path_plot <- "<INSERT PATH/>"
+output_file_plot <- "<INSERT FILE_NAME>"
 
-
-### [CODE] ###
-
-### Plot PCA
-p <- ggplot(pca_data, aes(x=PC1, y=PC2)) +
-  geom_point(size=4, shape=21, color="black", aes(fill=Type)) +
+### 1) Plot PCA
+fig_1f <- ggplot(pca_data, aes(x = PC1, y = PC2)) +
+  geom_point(size = 4, shape = 21, color = "black", aes(fill = Type)) +
+  scale_fill_manual(values = pca_colors) +
+  labs(
+    x    = paste0("PC1: ", percent_var[1], "% variance"),
+    y    = paste0("PC2: ", percent_var[2], "% variance"),
+    fill = "Sample Type"
+  ) +
   theme_bw() +
-  theme(panel.grid.major=element_blank(), 
-        panel.grid.minor=element_blank()) +
-  scale_fill_manual(values=namedColor) +
-  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
-  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
-  labs(fill="Sample Type") 
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
 
 # Visualize PCA
-p
+fig_1f
 
-# Save
-FILE_PATH <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(FILE_PATH, plot=p, width=6, height=3, dpi=300, units="in")
-
+# Save plot
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1f,
+  width    = 6,
+  height   = 3,
+  dpi      = 300,
+  units    = "in"
+)
 
 ### Fig 1G - Volcano ----------------------------------------
-### Please run annotation code "dhmr.R" before running this code! ###
-# This will give you a file called "res.rds", which are results after 
-  # differential analysis
+# Before running:
+#   Run dhmr.R first. This should create "res.rds".
 
-### [PREP] ###
-
-# Import res and convert to a data frame
 res <- readRDS("res.rds")
 res_df <- data.frame(res)
 
-## Visualize res_df
-# dim(res_df) 
-# head(res_df)
-
-
-# Setting cut-offs
-res_df$padj <- -log10(res_df$padj) # Transforms padj
-pval.cutoff <- 0.05
-fc.cutoff <- 1
-res_df$colors <- "Nonsignificant"
-
+# Set cut-offs
+pval_cutoff <- 0.05
+fc_cutoff   <- 1
 
 # Setting volcano plot colours
-namedColor <- c("NCC"="#7C96D2", "SCLC"="#E8858A", "Nonsignificant"="#D9D9D9")
+volcano_colors <- c(
+  "NCC"            = "#7C96D2",
+  "SCLC"           = "#E8858A",
+  "Nonsignificant" = "#D9D9D9"
+)
 
-# RED
-res_df$colors[which(res_df$padj > -log10(pval.cutoff) & res_df$log2FoldChange > fc.cutoff)] <- "SCLC"
-# length(which(res_df$colors == "SCLC"))
+res_df <- res_df %>%
+  mutate(
+    neg_log10_padj = -log10(padj),
+    colors = case_when(
+      neg_log10_padj > -log10(pval_cutoff) & log2FoldChange >  fc_cutoff ~ "SCLC",
+      neg_log10_padj > -log10(pval_cutoff) & log2FoldChange < -fc_cutoff ~ "NCC",
+      TRUE ~ "Nonsignificant"
+    )
+  ) %>%
+  filter(!is.na(neg_log10_padj), is.finite(log2FoldChange))
 
-# BLUE
-res_df$colors[which(res_df$padj > -log10(pval.cutoff) & res_df$log2FoldChange < -fc.cutoff)] <- "NCC"
-# length(which(res_df$colors == "NCC"))
+# Output variables
+output_path_plot <- "<INSERT PATH/>"
+output_file_plot <- "<INSERT FILE_NAME>" # Recommended: save as JPG, not vector.
 
-
-# For saving final plot
-OUTPUT_PATH_p <- "<INSERT PATH/>"
-FILE_NAME_p <- "<INSERT FILE_NAME>" # RECOMMENDED to save as a jpg and not a vector-based file!
-
-
-### [CODE] ###
-
-### 1) Clean res_df by taking out NA/inf log2FC
-plot_df <- res_df %>%
-  filter(!is.na(-log10(res_df$padj)), is.finite(log2FoldChange))
-
-### 2) Plot
-p <- ggplot(plot_df, aes(x=log2FoldChange, y=padj, color=colors)) +
-  geom_point(shape=19) +
-  geom_hline(yintercept = -log10(pval.cutoff), color="black", lty=2, lwd=0.5) +
-  geom_vline(xintercept = c(-fc.cutoff, fc.cutoff), color="black", lty=2, lwd=0.5) +
+### 1) Plot volcano
+fig_1g <- ggplot(res_df, aes(x = log2FoldChange, y = neg_log10_padj, color = colors)) +
+  geom_point(shape = 19) +
+  geom_hline(
+    yintercept = -log10(pval_cutoff),
+    color      = "black",
+    lty        = 2,
+    lwd        = 0.5
+  ) +
+  geom_vline(
+    xintercept = c(-fc_cutoff, fc_cutoff),
+    color      = "black",
+    lty        = 2,
+    lwd        = 0.5
+  ) +
+  scale_color_manual(values = volcano_colors) +
+  labs(
+    x = "log2(fold change)",
+    y = "-log10(adjusted p-value)"
+  ) +
   theme_bw() +
-  theme(legend.title = element_blank()) +
-  theme(panel.grid.major=element_blank(), 
-        panel.grid.minor=element_blank()) +
-  scale_color_manual(values=namedColor) +
-  labs(x="log2(fold change)",
-       y="-log10(adjusted p-value)")
+  theme(
+    legend.title     = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
 
 # Visualize plot
-p
+fig_1g
 
 # Save plot
-FILE_PATH <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(FILE_PATH, plot=p, width=6, height=3, dpi=300, units="in")
-
-
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1g,
+  width    = 6,
+  height   = 3,
+  dpi      = 300,
+  units    = "in"
+)
 
 ### Fig 1H - GSEA -------------------------------------------
-### Please run annotation code "gsea.R" before running this code! ###
-# This will give you a file called "fgsea_res.csv", which are results after 
-# differential analysis
+# Before running:
+#   Run gsea.R first. This should create "fgsea_res.csv".
 
-### [PREP] ###
 # Import fgsea data
 fgsea_go_bp <- read.csv("fgsea_res.csv")
 
 # Define colors
 nes_colors <- c(
-  "FALSE" = "#AED4DD",   # negative NES
-  "TRUE"  = "#E9AFC6"    # positive NES
+  "FALSE" = "#AED4DD",
+  "TRUE"  = "#E9AFC6"
 )
 
-# For saving final plot
-OUTPUT_PATH_p <- "<INSERT PATH/>"
-FILE_NAME_p <- "<INSERT FILE_NAME>"
-
-
-### [CODE] ###
+# Output variables
+output_path_plot <- "<INSERT PATH/>"
+output_file_plot <- "<INSERT FILE_NAME>"
 
 ### 1) Reorganize fgsea resuts and select top 10 pathways
-
-# Order fgsea results
-fgsea_go_bp <- fgsea_go_bp[order(fgsea_go_bp$padj, -abs(fgsea_go_bp$NES)), ]
-
-# Select top 10 pathways
-top_pathways <- fgsea_go_bp[1:10, ]
-
-# Clean pathway names
-clean_terms <- gsub("_", " ", gsub("^GOBP_", "", top_pathways$pathway))
-top_pathways$short <- clean_terms
-top_pathways$short <- stringr::str_wrap(top_pathways$short, width = 30)
-
-# Convert to factor so order is preserved
-top_pathways$short <- factor(
-  top_pathways$short,
-  levels = top_pathways$short[order(top_pathways$NES)]
-)
-
+top_pathways <- fgsea_go_bp %>%
+  arrange(padj, desc(abs(NES))) %>%
+  slice_head(n = 10) %>%
+  mutate(
+    short = pathway %>%
+      gsub(pattern = "^GOBP_", replacement = "") %>%
+      gsub(pattern = "_", replacement = " ") %>%
+      str_wrap(width = 30),
+    short = factor(short, levels = short[order(NES)])
+  )
 
 ### 2) Plot dot plot
-p <- ggplot(
-  top_pathways,
-  aes(
-    x = short,
-    y = NES,
-    fill = NES > 0
-  )
-) +
-  
+fig_1h <- ggplot(top_pathways, aes(x = short, y = NES, fill = NES > 0)) +
   geom_point(
-    shape = 21,           
-    size = 5,
-    color = "black",     
+    shape  = 21,
+    size   = 5,
+    color  = "black",
     stroke = 0.6
   ) +
-  
   scale_fill_manual(values = nes_colors) +
   coord_flip() +
-
   labs(
     x = "GO Biological Process",
     y = "Normalized Enrichment Score (NES)"
   ) +
-  
   theme_bw(base_size = 11) +
-  
   theme(
-    panel.grid.major = element_blank(),   
+    panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    axis.title.y = element_text(margin = margin(r = 10))
+    axis.title.y     = element_text(margin = margin(r = 10))
   ) +
-  
   guides(fill = "none")
 
-# Visualize
-p
+# Visualize plot
+fig_1h
 
-# Save
-FILE_PATH <- paste0(OUTPUT_PATH_p, FILE_NAME_p)
-ggsave(FILE_PATH, plot=p, width=6, height=5, dpi=300, units="in")
+# Save plot
+ggsave(
+  filename = file.path(output_path_plot, output_file_plot),
+  plot     = fig_1h,
+  width    = 6,
+  height   = 5,
+  dpi      = 300,
+  units    = "in"
+)
