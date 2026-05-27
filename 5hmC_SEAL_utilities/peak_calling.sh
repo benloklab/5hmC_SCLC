@@ -8,7 +8,7 @@
 
 ##############################################################################
 #
-# This script was used to profile 5hmC peaks in an HPC environment
+# Profile 5hmC peaks in an HPC environment
 # 
 # MACS2
 # `INPUT: bam files 
